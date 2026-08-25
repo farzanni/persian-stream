@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فی‌استریم — تست پخش‌کننده</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117; color: #e6edf3;
+    font-family: Vazirmatn, Tahoma, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 24px 16px; gap: 14px;
+  }
+  h1 { font-size: 1.25rem; }
+  h1 span { color: #f78166; }
+  #stage { position: relative; width: min(960px, 100%); aspect-ratio: 16/9; background:#000; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  video { width: 100%; height: 100%; background: black; }
+  video::cue { font-family: Vazirmatn, Tahoma, sans-serif; font-size: 1.35em; line-height: 1.7; background: rgba(0,0,0,.75); color: #fff; }
+  .bar { width: min(960px,100%); display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; }
+  button { background:#21262d; color:#e6edf3; border:1px solid #30363d; border-radius:8px; padding:8px 16px; cursor:pointer; font-family:inherit; font-size:.95rem; }
+  button:hover { background:#30363d; }
+  #status { color:#8b949e; font-size:.85rem; }
+</style>
+</head>
+<body>
+  <h1>فی<span>استریم</span> — زیرنویس فارسی روی پخش‌کننده خودمان</h1>
+
+  <div id="stage">
+    <video id="player" controls playsinline></video>
+  </div>
+
+  <div class="bar">
+    <button id="toggleSubs">زیرنویس: روشن</button>
+    <button id="playBtn">▶ پخش</button>
+    <span id="status">در حال بارگذاری…</span>
+  </div>
+
+<script src="hls.js"></script>
+<script>
+  const video = document.getElementById('player');
+  const status = document.getElementById('status');
+
+  // Attach the Persian subtitle track
+  const tr = document.createElement('track');
+  tr.kind = 'subtitles';
+  tr.label = 'فارسی';
+  tr.srclang = 'fa';
+  tr.default = true;
+  tr.src = 'subs/fight-club.fa.vtt?v=' + Date.now(); // cache-bust during testing
+  video.appendChild(tr);
+
+  // Firefox quirk: dynamic <track> elements only start loading once their
+  // mode is 'showing'. Kick every track that appears into showing mode.
+  function activate(t) { try { t.mode = 'showing'; } catch (_) {} }
+  video.textTracks.addEventListener('addtrack', e => activate(e.track));
+  if (video.textTracks.length) {
+    for (const t of video.textTracks) activate(t);
+  }
+
+  // Self-contained demo source; production swaps in real provider streams.
+  const STREAM = 'test.mp4';
+
+  function attachSource(src) {
+    if (/\.m3u8(\?|$)/.test(src) && window.Hls && Hls.isSupported()) {
+      const hls = new Hls({ maxBufferLength: 30 });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => status.textContent = 'آماده ✓ دکمهٔ پخش را بزنید');
+      hls.on(Hls.Events.ERROR, (_, d) => {
+        if (d.fatal) { status.textContent = 'خطای پخش: ' + d.type; }
+      });
+    } else {
+      // Progressive file (mp4/webm) — works everywhere including Firefox
+      video.src = src;
+      video.addEventListener('loadedmetadata', () => status.textContent = 'آماده ✓ دکمهٔ پخش را بزنید', { once: true });
+      video.addEventListener('error', () => status.textContent = 'خطا در بارگذاری ویدیو', { once: true });
+    }
+  }
+
+  attachSource(STREAM);
+
+  document.getElementById('playBtn').onclick = () => video.play().catch(e => status.textContent = e.message);
+  let subsOn = true;
+  document.getElementById('toggleSubs').onclick = (e) => {
+    subsOn = !subsOn;
+    tr.track.mode = subsOn ? 'showing' : 'hidden';
+    e.target.textContent = 'زیرنویس: ' + (subsOn ? 'روشن' : 'خاموش');
+  };
+  tr.addEventListener('load', () => {
+    status.textContent = `آماده ✓ — ${tr.track.cues.length} سطر زیرنویس فارسی بارگذاری شد`;
+    tr.track.mode = 'showing';
+  });
+  tr.addEventListener('error', () => status.textContent = 'خطا در بارگذاری زیرنویس');
+</script>
+</body>
+</html>

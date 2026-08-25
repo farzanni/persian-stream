@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+{% if q %}
+  <h1 style="font-size:1.15rem;margin-bottom:16px">نتایج برای «{{ q }}»</h1>
+  {% if items %}
+  <div class="rail" style="flex-wrap:wrap">
+    {% for it in items %}{% include '_card.html' %}{% endfor %}
+  </div>
+  {% else %}<p class="muted">چیزی پیدا نشد.</p>{% endif %}
+{% else %}
+  <div id="personal"></div>
+  <div class="row"><h2>🔥 داغ امروز</h2>
+    <div class="rail">{% for it in trending %}{% include '_card.html' %}{% endfor %}</div></div>
+  <div class="row"><h2>🎬 بهترین فیلم‌ها</h2>
+    <div class="rail">{% for it in movies %}{% include '_card.html' %}{% endfor %}</div></div>
+  <div class="row"><h2>📺 سریال‌های برتر</h2>
+    <div class="rail">{% for it in shows %}{% include '_card.html' %}{% endfor %}</div></div>
+  <div class="row"><h2>🎟️ اکران آنلاین</h2>
+    <div class="rail">{% for it in theaters %}{% include '_card.html' %}{% endfor %}</div></div>
+  <div class="row"><h2>💥 اکشن</h2>
+    <div class="rail">{% for it in action %}{% include '_card.html' %}{% endfor %}</div></div>
+  <div class="row"><h2>😂 کمدی</h2>
+    <div class="rail">{% for it in comedy %}{% include '_card.html' %}{% endfor %}</div></div>
+  <div class="row"><h2>👻 ترسناک</h2>
+    <div class="rail">{% for it in horror %}{% include '_card.html' %}{% endfor %}</div></div>
+
+  <div class="row" style="margin-top:40px">
+    <h2>مرور بر اساس ژانر</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      {% for g, gl in genres %}
+      <a href="/browse/movie?genre={{ g }}" class="sebtn">{{ gl }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  <style>
+    .sebtn { text-decoration:none; color:var(--dim); border:1px solid var(--line);
+      padding:6px 14px; border-radius:999px; font-size:.85rem; transition:.15s; }
+    .sebtn:hover { border-color: var(--accent); color: var(--fg); }
+  </style>
+{% endif %}
+<script>
+function renderPersonal() {
+  const host = document.getElementById('personal');
+  if (!host) return;
+  const cw = FIS.cw.slice(0, 10), bm = FIS.bm.slice(0, 10);
+  if (cw.length)
+    host.innerHTML = `<div class="row"><h2>⏯️ ادامه تماشا</h2><div class="rail">${
+      cw.map(i => cardHTML(i)).join('')}</div></div>` + host.innerHTML;
+  if (bm.length)
+    host.innerHTML += `<div class="row"><h2>❤️ ذخیره‌شده‌ها</h2><div class="rail">${
+      bm.map(i => cardHTML(i)).join('')}</div></div>`;
+}
+function cardHTML(i) {
+  return `<a class="card" href="/watch/${i.type}/${i.id}">
+    <img loading="lazy" src="${i.poster}" alt=""><div class="t">${i.title}</div>
+    ${i.meta ? `<div class="y">${i.meta}</div>` : ''}</a>`;
+}
+renderPersonal();
+</script>
+{% endblock %}

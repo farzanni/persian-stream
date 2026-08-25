@@ -1,0 +1,5 @@
+<a class="card" href="/watch/{{ it.type }}/{{ it.id }}">
+  <img loading="lazy" src="{{ it.poster }}" alt="{{ it.title }}">
+  <div class="t">{{ it.title }}</div>
+  <div class="y">{{ it.year }}{% if it.meta %} · {{ it.meta }}{% endif %}</div>
+</a>

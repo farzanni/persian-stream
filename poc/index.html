@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>فی‌استریم — اثبات مفهوم</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --accent:#e5484d; --fg:#e6edf3; --muted:#8b949e; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: Vazirmatn, "Segoe UI", Tahoma, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .logo { font-size: 26px; font-weight: 800; }
+  .logo span { color: var(--accent); }
+  .badge { font-size: 12px; color: var(--muted); border: 1px solid #30363d; border-radius: 999px; padding: 3px 10px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .meta { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+  .player-box {
+    position: relative; width: 100%; aspect-ratio: 16/9;
+    background: #000; border-radius: 12px; overflow: hidden;
+    border: 1px solid #30363d;
+  }
+  .player-box iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .note { margin-top: 14px; font-size: 13.5px; color: var(--muted); line-height: 2; }
+  .note b { color: var(--fg); }
+  .steps { margin-top: 18px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); }
+  .step { background: var(--card); border: 1px solid #30363d; border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--muted); }
+  .step b { color: var(--fg); display: block; margin-bottom: 4px; font-size: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">فی<span>استریم</span></div>
+    <div class="badge">نسخه اثبات مفهوم</div>
+  </header>
+
+  <h1>باشگاه مشت‌زنی <span style="color:var(--muted);font-weight:400">(Fight Club, 1999)</span></h1>
+  <div class="meta">دو ساعت و نوزده دقیقه • درام • با زیرنویس فارسی ✅</div>
+
+  <div class="player-box">
+    <iframe
+      src="https://vidlink.pro/movie/550?autoplay=false&title=true&poster=true&sub_file=http%3A%2F%2Flocalhost%3A8899%2Fsubs%2Ffight-club.fa.vtt&sub_label=%D9%81%D8%A7%D8%B1%D8%B3%DB%8C"
+      allowfullscreen></iframe>
+  </div>
+
+  <p class="note">
+    ▶ پخش را شروع کنید، روی آیکون <b>CC / زیرنویس</b> در پخش‌کننده بزنید و ترک <b>«فارسی»</b> را انتخاب کنید.<br>
+    اگر زیرنویس نیامد، صفحه را یک‌بار رفرش کنید — این همان چیزی است که می‌خواهیم همین امروز کشف کنیم.
+  </p>
+
+  <div class="steps">
+    <div class="step"><b>۱. کاتالوگ</b>متادیتا و پوسترها از TMDB با زبان فارسی؛ جستجو، ژانر، «ادامه تماشا».</div>
+    <div class="step"><b>۲. موتور زیرنویس</b>subf2m به‌عنوان منبع اصلی؛ تبدیل خودکار SRT→VTT؛ ترجمه هوش مصنفی برای فیلم‌های بدون زیرنویس.</div>
+    <div class="step"><b>۳. استریم</b>VidLink فعلاً؛ بعداً پلیر خودمان با استخراج مستقیم m3u8 برای کنترل کامل.</div>
+    <div class="step"><b>۴. انتشار</b>روی سرور پارس‌پک، دامنه اختصاصی، کاملاً مجزا از سرویس ثبت‌نام دانشگاه.</div>
+  </div>
+</div>
+</body>
+</html>

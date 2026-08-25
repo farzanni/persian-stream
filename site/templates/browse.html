@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }} — فی‌استریم{% endblock %}
+{% block content %}
+<h1 style="font-size:1.2rem;margin-bottom:6px">{{ heading }}</h1>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 24px">
+  {% for g, gl in genres %}
+  <a class="pill {{ 'on' if g == cur_genre else '' }}"
+     href="/browse/{{ type }}?genre={{ g }}">{{ gl }}</a>
+  {% endfor %}
+</div>
+{% if items %}
+<div class="rail" style="flex-wrap:wrap">
+  {% for it in items %}{% include '_card.html' %}{% endfor %}
+</div>
+<p class="muted" style="margin-top:18px">
+  {% if has_more %}<a href="/browse/{{ type }}?genre={{ cur_genre or '' }}&skip={{ next_skip }}">بیشتر ←</a>{% endif %}
+</p>
+{% else %}<p class="muted">موردی یافت نشد.</p>{% endif %}
+<style>
+  .pill { text-decoration:none; color:var(--dim); border:1px solid var(--line);
+    padding:7px 16px; border-radius:999px; font-size:.87rem; transition:.15s; }
+  .pill:hover { border-color:var(--accent); color:var(--fg); }
+  .pill.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+</style>
+{% endblock %}

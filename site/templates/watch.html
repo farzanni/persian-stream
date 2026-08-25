@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% if year %} ({{ year }}){% endif %} — فی‌استریم{% endblock %}
+{% block content %}
+<div class="hero">
+  <div class="backdrop" style="background-image:url('{{ backdrop }}')"></div>
+  <div class="hwrap">
+    {% if poster %}
+      <img class="poster" src="{{ poster.replace('/medium/','/large/') }}" alt="{{ title }}">
+    {% endif %}
+    <div class="info">
+      <h1>{{ title }} {% if year %}<small style="color:var(--dim)">({{ year }})</small>{% endif %}</h1>
+      <div class="badges">
+        {% if meta.rating %}<span>⭐ {{ meta.rating }}</span>{% endif %}
+        {% if meta.runtime %}<span>{{ meta.runtime }} دقیقه</span>{% endif %}
+        {% for g in (meta.genres or [])[:3] %}<span>{{ g }}</span>{% endfor %}
+        {% if type == 'series' and seasons|length %}<span>{{ seasons|length }} فصل</span>{% endif %}
+      </div>
+      {% if overview %}<p class="ov">{{ overview }}</p>{% endif %}
+
+      {% if type == 'series' %}
+      <div class="epbar">
+        <div class="seasons">
+          {% for n in seasons %}
+          <a class="sebtn {{ 'on' if n == cur_s else '' }}"
+             href="/watch/series/{{ tid }}?s={{ n }}&e=1">فصل {{ n }}</a>
+          {% endfor %}
+        </div>
+        <div class="eps">
+          {% for ep in episodes %}
+          <a class="epbtn {{ 'on' if ep.e == cur_e else '' }}"
+             href="/watch/series/{{ tid }}?s={{ ep.s }}&e={{ ep.e }}">{{ ep.e }}</a>
+          {% endfor %}
+        </div>
+        {% if ep_name %}<p class="epname">قسمت {{ cur_e }}: {{ ep_name }}</p>{% endif %}
+      </div>
+      {% endif %}
+
+      <div class="actions">
+        <button id="playBtn">▶ پخش{{ ' قسمت '+cur_e|string if type=='series' else '' }}</button>
+        {% if trailer_yt %}
+        <button id="trailerBtn" class="ghost">🎞 تریلر</button>
+        {% endif %}
+        <button id="bmBtn" class="ghost">♡ ذخیره</button>
+      </div>
+
+      <p id="substatus" class="substatus">در حال بررسی زیرنویس فارسی…</p>
+    </div>
+  </div>
+</div>
+
+<h2 class="sect">منابع پخش</h2>
+<div id="sources"></div>
+<p class="muted" style="font-size:.78rem;margin-top:6px">
+  اگر یک منبع کار نکرد، منبع بعدی را امتحان کنید — یا با اتصال نامطمئن، چند بار پخش را بزنید.</p>
+
+<h2 class="sect">مشابه این</h2>
+<div class="rail">{% for it in similar %}{% include '_card.html' %}{% endfor %}</div>
+
+<style>
+  .hero { position: relative; border-radius: 16px; overflow: hidden;
+    border: 1px solid var(--line); margin-bottom: 8px; }
+  .backdrop { position: absolute; inset: 0; background-size: cover;
+    background-position: center 18%; filter: blur(18px) brightness(.32)
+    saturate(1.1); transform: scale(1.15); }
+  .hwrap { position: relative; display: flex; gap: 24px; padding: 28px;
+    background: linear-gradient(180deg, rgba(11,13,18,.25), rgba(11,13,18,.88)); }
+  .poster { width: 168px; aspect-ratio: 2/3; object-fit: cover;
+    border-radius: 12px; border: 1px solid var(--line);
+    box-shadow: 0 14px 40px rgba(0,0,0,.55); }
+  .info { flex: 1; min-width: 0; }
+  h1 { font-size: 1.5rem; line-height: 1.35; }
+  .badges { display: flex; gap: 7px; flex-wrap: wrap; margin: 10px 0 4px; }
+  .badges span { font-size: .76rem; color: var(--dim); border: 1px solid var(--line);
+    padding: 3px 11px; border-radius: 999px; }
+  .ov { color: #c6cbd8; font-size: .9rem; line-height: 1.9; margin-top: 10px;
+    max-width: 720px; }
+  .actions { display: flex; gap: 10px; margin-top: 16px; }
+  button#playBtn { padding: 11px 30px; font-size: 1rem; }
+  button.ghost { background: transparent; border: 1px solid var(--line);
+    color: var(--dim); }
+  button.ghost.on { color: #ff8fa3; border-color: #ff8fa3; }
+  .epbar { margin-top: 14px; }
+  .seasons, .eps { display: flex; gap: 6px; flex-wrap: wrap; }
+  .seasons { margin-bottom: 8px; }
+  .sebtn, .epbtn { text-decoration:none; color:var(--dim); border:1px solid var(--line);
+    padding:4px 12px; border-radius:999px; font-size:.8rem; transition:.15s; }
+  .sebtn:hover, .epbtn:hover { border-color:var(--accent); color:var(--fg); }
+  .sebtn.on, .epbtn.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .epname { color: var(--dim); font-size: .82rem; margin-top: 8px; }
+  .sect { font-size: 1.05rem; margin: 26px 0 12px; }
+
+  #stage { position: relative; width: 100%; aspect-ratio: 16/9;
+    background: #000; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--line); margin-top: 18px;
+    display: none; }
+  #stage iframe { position: absolute; inset: 0; width: 100%; height: 100%;
+    border: 0; }
+  #stage.show { display: block; }
+  #sources { display: grid; grid-template-columns: repeat(auto-fill,minmax(170px,1fr));
+    gap: 10px; margin-top: 4px; }
+  .srcbtn { text-align: center; background: var(--card); border: 1px solid var(--line);
+    color: var(--fg); padding: 13px; border-radius: 12px; cursor: pointer;
+    font-family: inherit; font-size: .92rem; transition: .15s; }
+  .srcbtn:hover { border-color: var(--accent); }
+  .srcbtn.active { background: var(--accent); border-color: var(--accent); }
+
+  #suboverlay { position: absolute; left: 0; right: 0; bottom: 5%;
+    z-index: 30; pointer-events: none; text-align: center;
+    font-family: Vazirmatn, Tahoma, sans-serif; direction: rtl;
+    font-size: clamp(15px, 2.4vw, 27px); line-height: 1.75;
+    color: #fff; text-shadow: 0 0 6px rgba(0,0,0,.9), 0 1px 3px rgba(0,0,0,.95);
+    padding: 0 6%; white-space: pre-line; }
+  .substatus { margin-top: 14px; font-size: .86rem; color: #7fd49a;
+    background: rgba(127,212,154,.08); display: inline-block;
+    padding: 7px 14px; border-radius: 999px; }
+  .err { color: #ffb4a8; background: rgba(255,180,168,.07); }
+  @media (max-width: 720px) {
+    .hwrap { flex-direction: column; padding: 20px; }
+    .poster { width: 120px; }
+  }
+</style>
+
+<div id="stage"><div id="suboverlay" hidden></div></div>
+
+<script>
+  const tid = {{ tid | tojson }};
+  const type = {{ type | tojson }};
+  const stage = document.getElementById('stage');
+  const overlayEl = document.getElementById('suboverlay');
+  const statusEl = document.getElementById('substatus');
+  const sourcesEl = document.getElementById('sources');
+  const SUB_URL = {{ sub_url | tojson }};
+  const CUR_S = {{ cur_s }};
+  const CUR_E = {{ cur_e }};
+
+  const PROVIDERS = [
+    {key:'vidlink', name:'ون‌کلیک (پیشنهادی)', url:
+      `https://vidlink.pro/${type}/${tid}` + (type==='series' ? `?s=${CUR_S}&e=${CUR_E}` : '')},
+    {key:'videasy', name:'منبع ۲', url:
+      `https://player.videasy.net/${type}/${tid}` + (type==='series' ? `/${CUR_S}-${CUR_E}` : '')},
+    {key:'vidsrcsu', name:'منبع ۳', url:
+      `https://vidsrc.su/embed/${type}/${tid}` + (type==='series' ? `&s=${CUR_S}&e=${CUR_E}` : '')},
+    {key:'2embed', name:'منبع ۴', url:
+      `https://www.2embed.cc/embed/${tid}` + (type==='series' ? `~${CUR_S}~${CUR_E}` : '')},
+  ];
+
+  /* ---------- subtitle overlay engine ---------- */
+  let cues = null;
+  function parseVtt(txt) {
+    const out = [];
+    const re = /(\d{2}):(\d{2}):(\d{2})[.,](\d{3}) --> (\d{2}):(\d{2}):(\d{2})[.,](\d{3})\n([\s\S]*?)(?=\n\s*\n|\n\d+\n|$)/g;
+    let m;
+    while ((m = re.exec(txt))) {
+      const s = (+m[1])*3600 + (+m[2])*60 + +m[3] + (+m[4])/1000;
+      const e = (+m[5])*3600 + (+m[6])*60 + +m[7] + (+m[8])/1000;
+      const t = m[9].replace(/<[^>]+>/g, '').trim();
+      if (t) out.push({s, e, t});
+    }
+    out.sort((a, b) => a.s - b.s);
+    return out;
+  }
+  function renderSubs(t) {
+    if (!cues) return;
+    let lo = 0, hi = cues.length - 1, hit = null;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1, c = cues[mid];
+      if (c.e <= t) lo = mid + 1;
+      else if (c.s > t) hi = mid - 1;
+      else { hit = c; break; }
+    }
+    const txt = hit ? hit.t : '';
+    if (overlayEl.textContent !== txt) overlayEl.textContent = txt;
+    overlayEl.hidden = !txt;
+  }
+  window.addEventListener('message', (ev) => {
+    // vidlink broadcasts timeupdate ticks; videasy uses the same shape
+    const d = ev.data || {};
+    if ((d.type === 'PLAYER_EVENT') && d.data &&
+        d.data.event === 'timeupdate') renderSubs(d.data.currentTime || 0);
+  });
+  fetch(SUB_URL).then(r => r.ok ? r.text() : Promise.reject(r.status))
+    .then(txt => {
+      cues = parseVtt(txt);
+      statusEl.textContent = '✓ زیرنویس فارسی فعال (' +
+        cues.length.toLocaleString('fa-IR') + ' سطر)';
+    })
+    .catch(() => {
+      statusEl.textContent = 'زیرنویس فارسی در دسترس نیست.';
+      statusEl.classList.add('err');
+    });
+
+  /* ---------- source switching ---------- */
+  function mount(src) {
+    stage.classList.add('show');
+    stage.scrollIntoView({behavior: 'smooth', block: 'start'});
+    // replace iframe only
+    const old = stage.querySelector('iframe');
+    if (old) old.remove();
+    const f = document.createElement('iframe');
+    f.src = src; f.allowFullscreen = true; f.setAttribute('allow', 'autoplay; fullscreen');
+    stage.appendChild(f);
+    document.querySelectorAll('.srcbtn').forEach(b =>
+      b.classList.toggle('active', b.dataset.src === src));
+  }
+  PROVIDERS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'srcbtn'; b.textContent = p.name; b.dataset.src = p.url;
+    b.onclick = () => mount(p.url);
+    sourcesEl.appendChild(b);
+  });
+  document.getElementById('playBtn').onclick = () => mount(PROVIDERS[0].url);
+
+  {% if trailer_yt %}
+  document.getElementById('trailerBtn').onclick = () =>
+    mount('https://www.youtube.com/embed/{{ trailer_yt }}?autoplay=1');
+  {% endif %}
+
+  /* ---------- continue watching ---------- */
+  FIS.addCW({id: tid, type, title: {{ title | tojson }},
+             poster: {{ poster | tojson }},
+             meta: type==='series' ? ('فصل '+CUR_S+' قسمت '+CUR_E) : {{ year | tojson }}});
+
+  /* ---------- bookmark toggle ---------- */
+  const bmBtn = document.getElementById('bmBtn');
+  function isBm() { return FIS.bm.some(x => x.id === tid); }
+  function paintBm() {
+    bmBtn.classList.toggle('on', isBm());
+    bmBtn.textContent = isBm() ? '❤️ ذخیره شد' : '♡ ذخیره';
+  }
+  bmBtn.onclick = () => {
+    if (isBm()) FIS.bm = FIS.bm.filter(x => x.id !== tid);
+    else FIS.bm.unshift({id: tid, type, title: {{ title | tojson }},
+                         poster: {{ poster | tojson }}});
+    FIS.save(); paintBm();
+  };
+  paintBm();
+</script>
+{% endblock %}
