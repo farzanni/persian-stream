@@ -98,6 +98,10 @@
   #stage.show { display: block; }
   #sources { display: grid; grid-template-columns: repeat(auto-fill,minmax(170px,1fr));
     gap: 10px; margin-top: 4px; }
+  .synced { background: var(--card); border: 1px solid var(--line); color: var(--dim);
+    border-radius: 8px; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: .78rem; }
+  .synced:hover { border-color: var(--accent); color: var(--fg); }
+  .synced.on { background: var(--accent); color: #fff; border-color: var(--accent); }
   .srcbtn { text-align: center; background: var(--card); border: 1px solid var(--line);
     color: var(--fg); padding: 13px; border-radius: 12px; cursor: pointer;
     font-family: inherit; font-size: .92rem; transition: .15s; }
@@ -135,7 +139,9 @@
 
   const PROVIDERS = [
     {key:'vidlink', name:'ون‌کلیک (پیشنهادی)', url:
-      `https://vidlink.pro/${type}/${tid}` + (type==='series' ? `?s=${CUR_S}&e=${CUR_E}` : '')},
+      `https://vidlink.pro/${type}/${tid}` + (type==='series' ? `?s=${CUR_S}&e=${CUR_E}` : ''),
+      // Inject our Persian track into the player's native CC menu
+      sub: true},
     {key:'videasy', name:'منبع ۲', url:
       `https://player.videasy.net/${type}/${tid}` + (type==='series' ? `/${CUR_S}-${CUR_E}` : '')},
     {key:'vidsrcsu', name:'منبع ۳', url:
@@ -146,6 +152,7 @@
 
   /* ---------- subtitle overlay engine ---------- */
   let cues = null;
+  let syncOffset = 0;   // seconds to shift subtitles (sync fix)
   function parseVtt(txt) {
     const out = [];
     const re = /(\d{2}):(\d{2}):(\d{2})[.,](\d{3}) --> (\d{2}):(\d{2}):(\d{2})[.,](\d{3})\n([\s\S]*?)(?=\n\s*\n|\n\d+\n|$)/g;
@@ -161,11 +168,12 @@
   }
   function renderSubs(t) {
     if (!cues) return;
+    const adj = t + syncOffset;
     let lo = 0, hi = cues.length - 1, hit = null;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1, c = cues[mid];
-      if (c.e <= t) lo = mid + 1;
-      else if (c.s > t) hi = mid - 1;
+      if (c.e <= adj) lo = mid + 1;
+      else if (c.s > adj) hi = mid - 1;
       else { hit = c; break; }
     }
     const txt = hit ? hit.t : '';
@@ -183,21 +191,55 @@
       cues = parseVtt(txt);
       statusEl.textContent = '✓ زیرنویس فارسی فعال (' +
         cues.length.toLocaleString('fa-IR') + ' سطر)';
+      buildSyncUI();
     })
     .catch(() => {
       statusEl.textContent = 'زیرنویس فارسی در دسترس نیست.';
       statusEl.classList.add('err');
     });
 
+  /* ---------- sync offset UI ---------- */
+  function buildSyncUI() {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-top:8px;display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--dim)';
+    wrap.innerHTML = '<span>همگام‌سازی:</span>' +
+      '<button data-off="-1" class="synced">-۱ث</button>' +
+      '<button data-off="-0.5" class="synced">-۰.۵ث</button>' +
+      '<button data-off="0" class="synced on">۰</button>' +
+      '<button data-off="0.5" class="synced">+۰.۵ث</button>' +
+      '<button data-off="1" class="synced">+۱ث</button>' +
+      '<span id="syncVal" style="margin-right:6px"></span>';
+    statusEl.after(wrap);
+    wrap.querySelectorAll('.synced').forEach(b => {
+      b.onclick = () => {
+        syncOffset = parseFloat(b.dataset.off);
+        wrap.querySelectorAll('.synced').forEach(x => x.classList.remove('on'));
+        b.classList.add('on');
+        document.getElementById('syncVal').textContent =
+          (syncOffset >= 0 ? '+' : '') + syncOffset + ' ثانیه';
+      };
+    });
+    document.getElementById('syncVal').textContent = '۰ ثانیه';
+  }
+
   /* ---------- source switching ---------- */
-  function mount(src) {
+  let activeProvider = null;
+  function mount(src, provider) {
     stage.classList.add('show');
     stage.scrollIntoView({behavior: 'smooth', block: 'start'});
+    activeProvider = provider;
     // replace iframe only
     const old = stage.querySelector('iframe');
     if (old) old.remove();
+    let finalSrc = src;
+    // Inject our Persian track into player's native CC menu (vidlink supports sub_file)
+    if (provider && provider.sub && SUB_URL) {
+      finalSrc += (finalSrc.includes('?') ? '&' : '?') +
+        'sub_file=' + encodeURIComponent(SUB_URL) +
+        '&sub_label=' + encodeURIComponent('فارسی');
+    }
     const f = document.createElement('iframe');
-    f.src = src; f.allowFullscreen = true; f.setAttribute('allow', 'autoplay; fullscreen');
+    f.src = finalSrc; f.allowFullscreen = true; f.setAttribute('allow', 'autoplay; fullscreen');
     stage.appendChild(f);
     document.querySelectorAll('.srcbtn').forEach(b =>
       b.classList.toggle('active', b.dataset.src === src));
@@ -205,10 +247,10 @@
   PROVIDERS.forEach(p => {
     const b = document.createElement('button');
     b.className = 'srcbtn'; b.textContent = p.name; b.dataset.src = p.url;
-    b.onclick = () => mount(p.url);
+    b.onclick = () => mount(p.url, p);
     sourcesEl.appendChild(b);
   });
-  document.getElementById('playBtn').onclick = () => mount(PROVIDERS[0].url);
+  document.getElementById('playBtn').onclick = () => mount(PROVIDERS[0].url, PROVIDERS[0]);
 
   {% if trailer_yt %}
   document.getElementById('trailerBtn').onclick = () =>
