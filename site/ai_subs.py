@@ -23,10 +23,10 @@ log = logging.getLogger(__name__)
 
 BATCH = 60  # cues per request — bigger batches = fewer API calls
 
-# ── Provider chain ──────────────────────────────────────────────
-# Each provider: name, url, headers, payload builder, model list
+
 def _env():
     return open(os.path.expanduser("~/.hermes/.env")).read()
+
 
 def _key(name):
     # 1) Runtime env (Render injects these)
@@ -34,21 +34,17 @@ def _key(name):
     if v:
         return v.strip().strip('"')
     # 2) Fall back to local Hermes .env (dev laptop)
-    m = re.search(rf'^{name}\s*=\s*"?([^"\s]+)"?',
-                  open(os.path.expanduser("~/.hermes/.env")).read(),
-                  re.MULTILINE)
+    m = re.search(rf'^{name}\s*=\s*"?([^"\s]+)"?', _env(), re.MULTILINE)
     return m.group(1) if m else ""
 
 
-def _or_payload(model, messages):
-    return {"model": model, "temperature": 0.2, "messages": messages}
-
-
 def _or_headers():
-    return {"Authorization": f"Bearer {_key('OPENROUTER_API_KEY')}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://fistream.local",
-            "X-Title": "Fistream"}
+    return {
+        "Authorization": f"Bearer {_key('OPENROUTER_API_KEY')}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://fistream.onrender.com",
+        "X-Title": "Fistream",
+    }
 
 
 PROVIDERS = [
@@ -56,11 +52,12 @@ PROVIDERS = [
         "name": "openrouter",
         "url": "https://openrouter.ai/api/v1/chat/completions",
         "headers": _or_headers,
-        "models": ["minimax/minimax-m3:free",
-                   "google/gemma-4-26b-a4b-it:free",
-                   "meta-llama/llama-3.1-8b-instruct:free",
-                   "mistralai/mistral-7b-instruct:free"],
-        "payload": _or_payload,
+        "models": [
+            "minimax/minimax-m3:free",
+            "google/gemma-4-26b-a4b-it:free",
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "mistralai/mistral-7b-instruct:free",
+        ],
     },
 ]
 
@@ -74,36 +71,70 @@ PROMPT = (
 )
 
 
-def _translate_one(client, provider, model, texts):
+def _translate_one(client, provider, model, messages):
     """Try one provider+model. Returns list[str] or raises."""
-    r = client.post(provider["url"],
-                    headers=provider["headers"](),
-                    json=provider["payload"](model, [
-                        {"role": "system", "content": PROMPT},
-                        {"role": "user", "content": json.dumps(texts, ensure_ascii=False)},
-                    ]),
-                    timeout=120)
+    r = client.post(
+        provider["url"],
+        headers=provider["headers"](),
+        json={"model": model, "temperature": 0.2, "messages": messages},
+        timeout=120,
+    )
     r.raise_for_status()
     content = r.json()["choices"][0]["message"]["content"].strip()
     content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content)
     out = json.loads(content)
-    if len(out) != len(texts):
-        raise ValueError(f"size mismatch: got {len(out)} want {len(texts)}")
+    if len(out) != len(messages[-1]["content"] if isinstance(messages[-1]["content"], list) else []):
+        pass  # size check done by caller
     return out
 
 
 def _translate_batch(client, texts):
-    """Try providers in order until one works."""
+    """Try providers in order until one works. Returns list[str]."""
+    messages = [
+        {"role": "system", "content": PROMPT},
+        {"role": "user", "content": json.dumps(texts, ensure_ascii=False)},
+    ]
     for provider in PROVIDERS:
         for model in provider["models"]:
             try:
-                out = _translate_one(client, provider, model, texts)
+                out = _translate_one(client, provider, model, messages)
+                if len(out) != len(texts):
+                    raise ValueError(f"size mismatch: got {len(out)} want {len(texts)}")
                 log.info("%s/%s: ok (%d cues)", provider["name"], model, len(out))
                 return out
             except Exception as e:
                 log.warning("%s/%s failed: %s", provider["name"], model, str(e)[:80])
                 continue
     raise RuntimeError("all providers exhausted")
+
+
+def translate_text(text: str) -> str | None:
+    """Translate arbitrary text (e.g. movie description) to Persian."""
+    if not text or not text.strip():
+        return None
+    system = (
+        "You translate to natural Persian (Farsi). Keep it concise, "
+        "natural, and faithful to the original."
+    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": text[:2000]},
+    ]
+    for provider in PROVIDERS:
+        for model in provider["models"]:
+            try:
+                with httpx.Client(timeout=60) as client:
+                    r = client.post(
+                        provider["url"],
+                        headers=provider["headers"](),
+                        json={"model": model, "temperature": 0.3, "messages": messages},
+                    )
+                    r.raise_for_status()
+                    return r.json()["choices"][0]["message"]["content"].strip()
+            except Exception as e:
+                log.warning("translate_text %s/%s: %s", provider["name"], model, str(e)[:60])
+                continue
+    return None
 
 
 def translate_srt_to_vtt(srt_text: str, out_path: str) -> str | None:
@@ -120,7 +151,7 @@ def translate_srt_to_vtt(srt_text: str, out_path: str) -> str | None:
     translated = []
     with httpx.Client(timeout=120) as client:
         for i in range(0, len(texts), BATCH):
-            batch = texts[i:i + BATCH]
+            batch = texts[i : i + BATCH]
             for attempt in range(2):
                 try:
                     translated.extend(_translate_batch(client, batch))
@@ -134,18 +165,18 @@ def translate_srt_to_vtt(srt_text: str, out_path: str) -> str | None:
     for ev, tr in zip(subs.events, translated):
         t = (tr or ev.plaintext).strip()
         if t:
-            new.events.append(pysubs2.SSAEvent(
-                start=ev.start, end=ev.end,
-                text=t.replace("\n", "\\N")))
+            new.events.append(
+                pysubs2.SSAEvent(start=ev.start, end=ev.end, text=t.replace("\n", "\\N"))
+            )
     new.save(out_path, format_="vtt")
     return out_path
 
 
-def fetch_english_srt(title: str, year: int | None,
-                      episode: tuple | None = None) -> str | None:
+def fetch_english_srt(title: str, year: int | None, episode: tuple | None = None) -> str | None:
     """Find an English SRT for the title (subf2m), return extracted path."""
     import io as _io
     import zipfile as _zipfile
+
     import subs as _subs
 
     try:
@@ -156,9 +187,7 @@ def fetch_english_srt(title: str, year: int | None,
                 return None
             r = client.get(cand["href"])
             r.raise_for_status()
-            m = re.findall(
-                r"""['"](/subtitles/[a-z0-9-]+/english/(\d+))['"]""",
-                r.text)
+            m = re.findall(r"""['"](/subtitles/[a-z0-9-]+/english/(\d+))['"]""", r.text)
             if not m:
                 return None
             detail = max(m, key=lambda x: int(x[1]))[0]
@@ -186,6 +215,7 @@ def fetch_english_srt(title: str, year: int | None,
 
 if __name__ == "__main__":
     import sys
+
     logging.basicConfig(level=logging.INFO)
     t = sys.argv[1] if len(sys.argv) > 1 else "Fight Club"
     y = int(sys.argv[2]) if len(sys.argv) > 2 else None

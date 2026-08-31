@@ -15,7 +15,8 @@
         {% for g in (meta.genres or [])[:3] %}<span>{{ g }}</span>{% endfor %}
         {% if type == 'series' and seasons|length %}<span>{{ seasons|length }} فصل</span>{% endif %}
       </div>
-      {% if overview %}<p class="ov">{{ overview }}</p>{% endif %}
+      {% if overview %}<p class="ov" id="overview">{{ overview }}</p>{% endif %}
+      <button id="descToggle" class="ghost" style="margin-top:8px;font-size:.8rem">🇬🇧 انگلیسی</button>
 
       {% if type == 'series' %}
       <div class="epbar">
@@ -138,16 +139,17 @@
   const CUR_E = {{ cur_e }};
 
   const PROVIDERS = [
-    {key:'vidlink', name:'ون‌کلیک (پیشنهادی)', url:
-      `https://vidlink.pro/${type}/${tid}` + (type==='series' ? `?s=${CUR_S}&e=${CUR_E}` : ''),
-      // Inject our Persian track into the player's native CC menu
-      sub: true},
-    {key:'videasy', name:'منبع ۲', url:
-      `https://player.videasy.net/${type}/${tid}` + (type==='series' ? `/${CUR_S}-${CUR_E}` : '')},
-    {key:'vidsrcsu', name:'منبع ۳', url:
-      `https://vidsrc.su/embed/${type}/${tid}` + (type==='series' ? `&s=${CUR_S}&e=${CUR_E}` : '')},
-    {key:'2embed', name:'منبع ۴', url:
+    // NOTE: vidlink/videasy CDNs (vidstream.pro) are BLOCKED from Iran.
+    // 2embed.cc CDN (streamsrcs.2embed.cc) works from Iran - put it first.
+    {key:'2embed', name:'منبع ۱ (پیشنهادی برای ایران)', url:
       `https://www.2embed.cc/embed/${tid}` + (type==='series' ? `~${CUR_S}~${CUR_E}` : '')},
+    {key:'vidlink', name:'ون‌کلیک', url:
+      `https://vidlink.pro/${type}/${tid}` + (type==='series' ? `?s=${CUR_S}&e=${CUR_E}` : ''),
+      sub: true},
+    {key:'videasy', name:'منبع ۳', url:
+      `https://player.videasy.net/${type}/${tid}` + (type==='series' ? `/${CUR_S}-${CUR_E}` : '')},
+    {key:'vidsrcsu', name:'منبع ۴', url:
+      `https://vidsrc.su/embed/${type}/${tid}` + (type==='series' ? `&s=${CUR_S}&e=${CUR_E}` : '')},
   ];
 
   /* ---------- subtitle overlay engine ---------- */
@@ -257,7 +259,35 @@
     mount('https://www.youtube.com/embed/{{ trailer_yt }}?autoplay=1');
   {% endif %}
 
-  /* ---------- continue watching ---------- */
+  /* ---------- description: Persian default, English optional ---------- */
+  const descToggle = document.getElementById('descToggle');
+  const overviewEl = document.getElementById('overview');
+  if (descToggle && overviewEl) {
+    let showingFa = false;
+    const enDesc = overviewEl.textContent;
+    const tid = {{ tid | tojson }};
+    const title = {{ title | tojson }};
+
+    async function showFa() {
+      descToggle.textContent = '🇮🇷 فارسی...';
+      const r = await fetch(`/desc/${tid}.txt?title=${encodeURIComponent(title)}&lang=fa`);
+      if (r.ok) {
+        overviewEl.textContent = await r.text();
+        descToggle.textContent = '🇬🇧 انگلیسی';
+        showingFa = true;
+      } else {
+        descToggle.textContent = '🇬🇧 انگلیسی';
+      }
+    }
+    function showEn() {
+      overviewEl.textContent = enDesc;
+      descToggle.textContent = '🇮🇷 فارسی';
+      showingFa = false;
+    }
+    descToggle.onclick = () => { if (showingFa) showEn(); else showFa(); };
+    // Auto-translate to Persian on page load (Persian is default)
+    showFa();
+  }
   FIS.addCW({id: tid, type, title: {{ title | tojson }},
              poster: {{ poster | tojson }},
              meta: type==='series' ? ('فصل '+CUR_S+' قسمت '+CUR_E) : {{ year | tojson }}});

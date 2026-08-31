@@ -250,6 +250,28 @@ def subtitle_file(tid: str,
                         filename=f"{tid}.fa.vtt")
 
 
+@app.get("/desc/{tid}.txt")
+async def description(tid: str, title: str = Query(...), lang: str = "fa"):
+    """Return movie description in requested language (cached)."""
+    import os as _os
+    cache_dir = "/tmp/fistream-desc"
+    _os.makedirs(cache_dir, exist_ok=True)
+    cache = _os.path.join(cache_dir, f"{tid}.{lang}")
+    if _os.path.exists(cache):
+        return FileResponse(cache, media_type="text/plain")
+    data = await cinemeta(f"/meta/movie/{tid}.json")
+    desc = ((data or {}).get("meta") or {}).get("description") or ""
+    if lang == "fa" and desc:
+        fa = ai_subs.translate_text(desc)
+        if fa:
+            desc = fa
+        else:
+            raise HTTPException(404)
+    with open(cache, "w") as f:
+        f.write(desc)
+    return FileResponse(cache, media_type="text/plain")
+
+
 @app.get("/healthz")
 async def healthz():
     return {"ok": True}
