@@ -139,18 +139,11 @@
   const CUR_E = {{ cur_e }};
 
   const PROVIDERS = [
-    // NOTE: vidlink/videasy CDNs (vidstream.pro) are BLOCKED from Iran.
-    // 2embed.cc CDN (streamsrcs.2embed.cc) works from Iran - put it first.
-    {key:'2embed', name:'منبع ۱ (پیشنهادی برای ایران)', url:
-      `https://www.2embed.cc/embed/${tid}` + (type==='series' ? `~${CUR_S}~${CUR_E}` : '')},
-    {key:'vidlink', name:'ون‌کلیک', url:
-      `https://vidlink.pro/${type}/${tid}` + (type==='series' ? `?s=${CUR_S}&e=${CUR_E}` : ''),
-      sub: true},
-    {key:'videasy', name:'منبع ۳', url:
-      `https://player.videasy.net/${type}/${tid}` + (type==='series' ? `/${CUR_S}-${CUR_E}` : '')},
-    {key:'vidsrcsu', name:'منبع ۴', url:
-      `https://vidsrc.su/embed/${type}/${tid}` + (type==='series' ? `&s=${CUR_S}&e=${CUR_E}` : '')},
-  ];
+      {key:'2embed', name:'منبع ۱ (پیشنهادی)', url:`/stream?url=${encodeURIComponent(`https://www.2embed.cc/embed/${tid}` + (type==='series' ? `~${CUR_S}~${CUR_E}` : ''))}`},
+      {key:'vidlink', name:'ون‌کلیک', url:`/stream?url=${encodeURIComponent(`https://vidlink.pro/${type}/${tid}` + (type==='series' ? `?s=${CUR_S}&e=${CUR_E}` : ''))}`, sub: true},
+      {key:'videasy', name:'منبع ۳', url:`/stream?url=${encodeURIComponent(`https://player.videasy.net/${type}/${tid}` + (type==='series' ? `/${CUR_S}-${CUR_E}` : ''))}`},
+      {key:'vidsrcsu', name:'منبع ۴', url:`/stream?url=${encodeURIComponent(`https://vidsrc.su/embed/${type}/${tid}` + (type==='series' ? `&s=${CUR_S}&e=${CUR_E}` : ''))}`},
+    ];
 
   /* ---------- subtitle overlay engine ---------- */
   let cues = null;
@@ -226,15 +219,43 @@
 
   /* ---------- source switching ---------- */
   let activeProvider = null;
-  function mount(src, provider) {
+  async function mount(src, provider) {
     stage.classList.add('show');
     stage.scrollIntoView({behavior: 'smooth', block: 'start'});
     activeProvider = provider;
-    // replace iframe only
     const old = stage.querySelector('iframe');
     if (old) old.remove();
+    const oldVideo = stage.querySelector('video');
+    if (oldVideo) oldVideo.remove();
+    // If this is a proxied stream, fetch and play directly
+    if (src && src.startsWith('/stream?url=')) {
+      try {
+        const r = await fetch(src);
+        if (r.ok) {
+          const ct = r.headers.get('content-type') || '';
+          if (ct.includes('video') || ct.includes('mpegurl')) {
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const v = document.createElement('video');
+            v.src = url; v.controls = true; v.autoplay = true;
+            v.style.width = '100%'; v.style.height = '100%'; v.style.borderRadius = '14px';
+            stage.appendChild(v);
+            document.querySelectorAll('.srcbtn').forEach(b =>
+              b.classList.toggle('active', b.dataset.src === src));
+            return;
+          }
+          // HTML response — embed in iframe
+          const html = await r.text();
+          const blob = new Blob([html], {type: 'text/html'});
+          const f = document.createElement('iframe');
+          f.src = URL.createObjectURL(blob); f.allowFullscreen = true;
+          f.setAttribute('allow', 'autoplay; fullscreen');
+          stage.appendChild(f);
+        }
+      } catch(e) { /* fall through to iframe */ }
+    }
+    // Default: direct iframe embed
     let finalSrc = src;
-    // Inject our Persian track into player's native CC menu (vidlink supports sub_file)
     if (provider && provider.sub && SUB_URL) {
       finalSrc += (finalSrc.includes('?') ? '&' : '?') +
         'sub_file=' + encodeURIComponent(SUB_URL) +

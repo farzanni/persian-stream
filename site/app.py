@@ -15,12 +15,13 @@ import urllib.parse
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import ai_subs
 import subs
+import stream_proxy
 
 log = logging.getLogger("fistream")
 logging.basicConfig(level=logging.INFO)
@@ -275,3 +276,13 @@ async def description(tid: str, title: str = Query(...), lang: str = "fa"):
 @app.get("/healthz")
 async def healthz():
     return {"ok": True}
+
+
+@app.get("/stream")
+async def stream(url: str = Query(...), referer: str = Query("")):
+    """Proxy a video stream through the server so Iranian clients never
+    connect to blocked CDN domains directly."""
+    result = await stream_proxy.proxy_stream(url, referer)
+    if result is None:
+        raise HTTPException(502, "stream unavailable")
+    return result
